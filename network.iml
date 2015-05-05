@@ -14,7 +14,7 @@
     <orderEntry type="jdk" jdkName="1.7" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="Leiningen: clojure-complete:0.2.3" level="project" />
-    <orderEntry type="library" name="Leiningen: medley:0.5.5" level="project" />
+    <orderEntry type="library" name="Leiningen: medley:0.6.0" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/clojure:1.7.0-beta1" level="project" />
     <orderEntry type="library" name="Leiningen: org.clojure/tools.nrepl:0.2.6" level="project" />
     <orderEntry type="library" name="Leiningen: prismatic/schema:0.4.0" level="project" />

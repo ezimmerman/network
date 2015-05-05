@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.7.0-beta1"]
                  [prismatic/schema "0.4.0"]
-                 [medley "0.5.5"]]
+                 [medley "0.6.0"]]
   :main ^:skip-aot network.core
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
