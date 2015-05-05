@@ -122,8 +122,7 @@
 
 (defn flow-one-pack [utilities nodes]
   "take a map of nodes and incrementes the existing inv for only the stores in the utilities col and returns nodes updated"
-  (let [utilities-map (apply hash-map utilities)
-        stores-only (m/filter-keys is-store-key? utilities-map)
+  (let [stores-only (m/filter-keys is-store-key? (apply hash-map utilities))
         store-to-flow (reduce (fn [[k1 v1] [k2 v2]] (if (> v1 v2) [k1 v1] [k2 v2]))  stores-only)
         inc-store (flow-pack (get-in nodes [:stores (first store-to-flow)]))
         nodes-stores-inc (assoc-in nodes [:stores (first store-to-flow)] inc-store)
