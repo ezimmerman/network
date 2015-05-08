@@ -67,9 +67,9 @@
 (defn get-vendor-utility [utilities]
   (reduce #(if
             (is-vendor-key? %2)
-            (max (%2 (apply hash-map utilities)) %)
+            (max (%2 utilities) %)
             %)
-          0 (keys (apply hash-map utilities)))
+          0 (keys utilities))
   )
 
 (extend-protocol Product-utility
@@ -110,7 +110,7 @@
   (let [stores-index-to-utility (include-utility stores)
         warehouses-index-to-utilities (include-utility warehouses stores-index-to-utility)
         vendor-index-with-utilities (include-utility vendor warehouses-index-to-utilities)]
-    (concat vendor-index-with-utilities warehouses-index-to-utilities stores-index-to-utility)
+    (apply hash-map (concat vendor-index-with-utilities warehouses-index-to-utilities stores-index-to-utility))
     )
   )
 
@@ -122,10 +122,10 @@
 
 (defn flow-one-pack [utilities nodes]
   "take a map of nodes and incrementes the existing inv for only the stores in the utilities col and returns nodes updated"
-  (let [stores-only (m/filter-keys is-store-key? (apply hash-map utilities))
-        store-to-flow (reduce (fn [[k1 v1] [k2 v2]] (if (> v1 v2) [k1 v1] [k2 v2]))  stores-only)
-        inc-store (flow-pack (get-in nodes [:stores (first store-to-flow)]))
-        nodes-stores-inc (assoc-in nodes [:stores (first store-to-flow)] inc-store)
+  (let [stores-only (m/filter-keys is-store-key? utilities)
+        store-index-to-flow (reduce (fn [[k1 v1] [k2 v2]] (if (> v1 v2) [k1 v1] [k2 v2]))  stores-only)
+        inc-store (flow-pack (get-in nodes [:stores (first store-index-to-flow)]))
+        nodes-stores-inc (assoc-in nodes [:stores (first store-index-to-flow)] inc-store)
         inc-vendor (update-index vendors-index)]
     (into {} (map (fn [[k v]] (assoc-in nodes-stores-inc [:vendor k] v)) inc-vendor))))
 
