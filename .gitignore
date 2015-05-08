@@ -9,3 +9,8 @@ pom.xml.asc
 /.nrepl-port
 .hgignore
 .hg/
+
+network.iml
+.idea/replstate.xml
+.idea/workspace.xml
+.idea/codeStyleSettings.xml
