@@ -1,5 +1,4 @@
-(ns network.core
-  (:gen-class)
+(ns network.networkcore1
   (:require [schema.core :as s])
   (:require [medley.core :as m]))
 
@@ -37,6 +36,8 @@
 (def nodes {:stores {:s0 (make-product-store "store0" :target-inventory 5) :s1 (make-product-store "store1" :target-inventory 10) :s2 (make-product-store "store2" :target-inventory 0)}
             :warehouses {:w0 (make-product-warehouse "warehouse0" (keys stores-index))}
             :vendor {:v0 (make-product-vendor "vendor0" (keys warehouses-index))}})
+
+
 
 ; functions to work against data structure
 
@@ -120,7 +121,7 @@
     (into {} (map (fn [[key val]] [key  (flow-pack val )]) index)))
 
 
-(defn flow-one-pack [utilities nodes]
+(defn- flow-one-pack [utilities nodes]
   "take a map of nodes and incrementes the existing inv for only the stores in the utilities col and returns nodes updated"
   (let [stores-only (m/filter-keys is-store-key? utilities)
         store-index-to-flow (reduce (fn [[k1 v1] [k2 v2]] (if (> v1 v2) [k1 v1] [k2 v2]))  stores-only)
@@ -131,13 +132,12 @@
 
 (defn flow [nodes]
   (loop [flowed-nodes nodes]
+    ;Get the utilities first.  Looks like {:v0 1.0 :w0 1.0 :s0 1.0 :s2 0 :s3 1.0}
     (let [utilities (get-utilities flowed-nodes)]
+      ; If the vendor has positive utility we need to order.
       (if (<= (get-vendor-utility utilities) 0)
         (print utilities flowed-nodes)
+        ;We'll recur until the vendor doesn't have positive utility for that pack.
         (recur (flow-one-pack utilities flowed-nodes)))))
   )
 
-(defn -main
-  [& args]
-  (flow nodes)
-  )
