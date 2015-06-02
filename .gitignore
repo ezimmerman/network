@@ -11,4 +11,5 @@ pom.xml.asc
 .hg/
 
 network.iml
-.idea/*
+/.idea/*
+~/clojure/network/.idea/*
