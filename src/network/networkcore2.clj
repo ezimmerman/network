@@ -52,14 +52,19 @@
 (defn- include-warehouses [vendor warehouses-col]
   (assoc vendor :warehouses warehouses-col))
 
+(defn- include-stores [warehouse stores]
+  (assoc warehouse :stores stores))
+
 (defn- get-entity-utility [entity]
   (:utility entity))
 
-(defn- reset-utility [entity]
+(defn- reset-entity-utility [entity]
   (dissoc entity :utility))
 
-(defn- reset-utilities [vendor]
-  (reset-utility vendor))
+
+(defn- reset-vendor-utility [vendor]
+  (let [warehouse (:warehouses vendor)
+        ]))
 
 (defn- highest-util-entity [entity0 entity1]
   (if (> (:utility entity0) (:utility entity1)) entity0 entity1))
@@ -74,13 +79,22 @@
 (defprotocol Product-utility (utility [entity]))
 (defprotocol Flow (flow-one-pack [entity]))
 (defprotocol Include-Utility (include-utility [entity]))
+(defprotocol Reset-utility (reset-utility [entity]))
 
-(extend-protocol Product-utility
+(extend-protocol Reset-utility
   Store
-  (utility [store]
-    (let [pack (+ (get-final-order store) (get-existing-inventory store))
-          end  (get-target-inventory store)]
-      (assoc store :utility (if (< pack end) 1.0 (* (/ 1.0 pack) -1.0))))))
+  (reset-utility [store]
+    (reset-entity-utility [store])))
+
+(extend-protocol Reset-utility
+  Warehouse
+  (reset-utility [warehouse]
+    (assoc warehouse :stores (map reset-utility (:stores warehouse)))))
+
+(extend-protocol Reset-utility
+  Vendor
+  (reset-utility [vendor]
+    (assoc vendor :warehouses (map reset-utility (:warehouses vendor)))))
 
 (extend-protocol Include-Utility
   Warehouse
@@ -92,22 +106,18 @@
   (include-utility [vendor]
     (assoc vendor :warehouses (map utility (get-warehouses vendor)))))
 
-(extend-protocol Flow
+(extend-protocol Product-utility
   Store
-  (flow-one-pack [store]
-    (update store :final-order inc)))
+  (utility [store]
+    (let [pack (+ (get-final-order store) (get-existing-inventory store))
+          end  (get-target-inventory store)]
+      (assoc store :utility (if (< pack end) 1.0 (* (/ 1.0 pack) -1.0))))))
 
 (extend-protocol Product-utility
   Warehouse
   (utility [warehouse]
     (let [warehouse-with-utilities (include-utility warehouse)]
       (assoc warehouse-with-utilities :utility (reduce #(max (:utility %2) %) 0 (:stores warehouse-with-utilities))))))
-
-(extend-protocol Flow
-  Warehouse
-  (flow-one-pack [warehouse]
-    (let [updated-warehouse (update warehouse :final-order inc)]
-      (assoc updated-warehouse :stores (replace-entity (flow-one-pack (reduce highest-util-entity (:stores updated-warehouse))) (:stores updated-warehouse))))))
 
 (extend-protocol Product-utility
   Vendor
@@ -116,10 +126,23 @@
       (assoc vendor-with-utilities :utility (reduce #(max (:utility %2) %) 0 (:warehouses vendor-with-utilities))))))
 
 (extend-protocol Flow
+  Store
+  (flow-one-pack [store]
+    (update (update store :final-order inc) :existing-inventory inc)))
+
+(extend-protocol Flow
+  Warehouse
+  (flow-one-pack [warehouse]
+    (let [updated-warehouse (update warehouse :final-order inc)]
+      (assoc updated-warehouse :stores (replace-entity (flow-one-pack (reduce highest-util-entity (:stores updated-warehouse))) (:stores updated-warehouse))))))
+
+
+(extend-protocol Flow
   Vendor
   (flow-one-pack [vendor]
     (let [updated-vendor (update vendor :final-order inc)]
       (assoc updated-vendor :warehouses (replace-entity (flow-one-pack (reduce highest-util-entity (:warehouses updated-vendor))) (:warehouses updated-vendor))))))
+
 
 
 
@@ -135,9 +158,9 @@
     ; If the vendor has positive utility we need to order.
     (let [utilities-vendor (utility flowed-vendor)]
       (if (<= (get-entity-utility utilities-vendor) 0)
-        (println flowed-vendor)
+        (println utilities-vendor)
         ;We'll recur until the vendor doesn't have positive utility for that pack.
-        (recur (flow-one-pack flowed-vendor)))))
+        (recur (flow-one-pack utilities-vendor)))))
   )
 
 (defn -main
