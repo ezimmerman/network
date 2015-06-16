@@ -47,24 +47,11 @@
 (defn- get-target-inventory [store]
   (:target-inventory store))
 
-
-
-(defn- include-warehouses [vendor warehouses-col]
-  (assoc vendor :warehouses warehouses-col))
-
-(defn- include-stores [warehouse stores]
-  (assoc warehouse :stores stores))
-
 (defn- get-entity-utility [entity]
   (:utility entity))
 
 (defn- reset-entity-utility [entity]
   (dissoc entity :utility))
-
-
-(defn- reset-vendor-utility [vendor]
-  (let [warehouse (:warehouses vendor)
-        ]))
 
 (defn- highest-util-entity [entity0 entity1]
   (if (> (:utility entity0) (:utility entity1)) entity0 entity1))
@@ -76,10 +63,17 @@
 (defn- replace-entity [entity seq]
   (conj (remove (entity-equals entity) seq) entity))
 
+
 (defprotocol Product-utility (utility [entity]))
 (defprotocol Flow (flow-one-pack [entity]))
 (defprotocol Include-Utility (include-utility [entity]))
 (defprotocol Reset-utility (reset-utility [entity]))
+
+(defn- reset-utilities [entity children-key]
+  (assoc entity children-key(map reset-utility (children-key entity))))
+
+(defn- include-utilities [entity children-key child-fn]
+  (assoc entity children-key (map utility (child-fn entity))))
 
 (extend-protocol Reset-utility
   Store
@@ -89,22 +83,22 @@
 (extend-protocol Reset-utility
   Warehouse
   (reset-utility [warehouse]
-    (assoc warehouse :stores (map reset-utility (:stores warehouse)))))
+    (reset-utilities warehouse :stores)))
 
 (extend-protocol Reset-utility
   Vendor
   (reset-utility [vendor]
-    (assoc vendor :warehouses (map reset-utility (:warehouses vendor)))))
+    (reset-utilities vendor :warehouses)))
 
 (extend-protocol Include-Utility
   Warehouse
   (include-utility [warehouse]
-    (assoc warehouse :stores (map utility (get-stores warehouse)))))
+    (include-utilities warehouse :stores get-stores)))
 
 (extend-protocol Include-Utility
   Vendor
   (include-utility [vendor]
-    (assoc vendor :warehouses (map utility (get-warehouses vendor)))))
+    (include-utilities vendor :warehouses get-warehouses)))
 
 (extend-protocol Product-utility
   Store
