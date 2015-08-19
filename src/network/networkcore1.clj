@@ -3,45 +3,45 @@
   (:require [medley.core :as m]))
 
 (s/defrecord Store [name :- String
-                           existing-inventory :- s/Int
-                           target-inventory :- s/Int
-                           final-order :- s/Int ])
+                    existing-inventory :- s/Int
+                    target-inventory :- s/Int
+                    final-order :- s/Int])
+
 (s/defrecord Warehouse [name :- String
-                             final-order :- s/Int
-                             stores :- [Store]])
+                        final-order :- s/Int
+                        stores :- [Store]])
+
 (s/defrecord Vendor [name :- String
-                            final-order :- s/Int
-                            warehouses :- [Warehouse]])
+                     final-order :- s/Int
+                     warehouses :- [Warehouse]])
 
 (defn make-product-vendor [name warehouses]
   (->Vendor name
-                   0
-                   warehouses))
+            0
+            warehouses))
 
 (defn make-product-store [name & opts]
   (let [{:keys [existing-inventory
                 target-inventory] :or {existing-inventory 0 target-inventory 0}} opts] ;; default to 0
     (->Store name
-                    existing-inventory
-                    target-inventory
-                    0)))
+             existing-inventory
+             target-inventory
+             0)))
 
 (defn make-product-warehouse [name product-stores]
   (->Warehouse name
-                      0
-                      product-stores))
+               0
+               product-stores))
 (def stores-index {:s0 (make-product-store "store0" :target-inventory 5) :s1 (make-product-store "store1" :target-inventory 10) :s2 (make-product-store "store2" :target-inventory 0)})
 (def warehouses-index {:w0 (make-product-warehouse "warehouse0" (keys stores-index))})
-(def vendors-index {:v0 (make-product-vendor "vendor0" (keys warehouses-index))})
-(def nodes {:stores {:s0 (make-product-store "store0" :target-inventory 5) :s1 (make-product-store "store1" :target-inventory 10) :s2 (make-product-store "store2" :target-inventory 0)}
-            :warehouses {:w0 (make-product-warehouse "warehouse0" (keys stores-index))}
-            :vendor {:v0 (make-product-vendor "vendor0" (keys warehouses-index))}})
+(def vendor-index {:v0 (make-product-vendor "vendor0" (keys warehouses-index))})
+(def indexes {:vendor-index vendor-index :warehouses-index warehouses-index :stores-index stores-index})
 
 
 
 ; functions to work against data structure
 
-(defprotocol Product-utility (product-utility [entity] [entity utilities-map]))
+(defprotocol Product-utility (product-utility [entity] [entity indexes]))
 (defprotocol Flow-pack (flow-pack [entity]))
 
 (defn get-final-order [entity]
@@ -59,43 +59,25 @@
 (defn get-target-inventory [store]
   (:target-inventory store))
 
-(defn is-vendor-key? [k]
-  (if (= (subs (name k) 0 1)  "v")  true false))
-
-(defn is-store-key? [k]
-  (if (= (subs (name k) 0 1)  "s")  true false))
-
-(defn get-vendor-utility [utilities]
-  (reduce #(if
-            (is-vendor-key? %2)
-            (max (%2 utilities) %)
-            %)
-          0 (keys utilities))
-  )
+(defn get-utility [entity]
+  (if (nil? (:utility entity)) 0.0 (:utility entity)))
 
 (extend-protocol Product-utility
   Store
   (product-utility [store]
     (let [pack (+ (get-final-order store) (get-existing-inventory store))
-          end (get-target-inventory store)]
+          end  (get-target-inventory store)]
       (if (< pack end) 1.0 (* (/ 1.0 pack) -1.0)))))
 
 (extend-protocol Product-utility
   Warehouse
-  (product-utility [warehouse utilities]
-    (reduce #(max  (%2 (apply hash-map utilities)) %) 0 (get-stores warehouse))))
+  (product-utility [warehouse indexes]
+    (reduce #(max (get-utility (%2 (:stores-index indexes))) %) 0 (get-stores warehouse))))
 
 (extend-protocol Product-utility
   Vendor
-  (product-utility [vendor utilities]
-    (reduce #(max  (%2 (apply hash-map utilities)) %) 0 (get-warehouses vendor))))
-
-(defn include-utility
-  ([index]
-   (mapcat #(vector (key %) (product-utility (val %))) index))
-  ([index utilities]
-   (mapcat #(vector (key %) (product-utility (val %) utilities)) index))
-  )
+  (product-utility [vendor indexes]
+    (reduce #(max (get-utility (%2 (:warehouses-index indexes))) %) 0 (get-warehouses vendor))))
 
 (extend-protocol Flow-pack
   Store
@@ -103,41 +85,35 @@
     (update (update store :existing-inventory inc) :final-order inc)))
 
 (extend-protocol Flow-pack
+  Warehouse
+  (flow-pack [warehouse]
+    (update warehouse :final-order inc)))
+
+(extend-protocol Flow-pack
   Vendor
   (flow-pack [vendor]
     (update vendor :final-order inc)))
 
-(defn get-utilities "return utility values for stores, warehouses, and vendor as a seq."[{:keys [stores warehouses vendor]}]
-  (let [stores-index-to-utility (include-utility stores)
-        warehouses-index-to-utilities (include-utility warehouses stores-index-to-utility)
-        vendor-index-with-utilities (include-utility vendor warehouses-index-to-utilities)]
-    (apply hash-map (concat vendor-index-with-utilities warehouses-index-to-utilities stores-index-to-utility))
-    )
-  )
+(defn update-utility
+  "add the utility to the entity"
+  ([entity] (assoc entity :utility (product-utility entity)))
+  ([entity indexes] (assoc entity :utility (product-utility entity indexes))))
 
+(defn include-utilities
+  "using the stores, warehouses and vendor indexes, add the utility calculations for the potential pack"
+  [indexes]
+  (let [stores-with-utilities     (assoc indexes :stores-index (m/map-vals update-utility (:stores-index indexes)))
+        warehouses-with-utilities (assoc stores-with-utilities :warehouses-index (m/map-vals #(update-utility % stores-with-utilities) (:warehouses-index stores-with-utilities)))]
+    (assoc warehouses-with-utilities :vendor-index (m/map-vals #(update-utility % warehouses-with-utilities) (:vendor-index warehouses-with-utilities)))))
 
-(defn update-index [index]
-  "take an index say stores and update the inventory of the individual stores returns a map"
-    (into {} (map (fn [[key val]] [key  (flow-pack val )]) index)))
-
-
-(defn- flow-one-pack [utilities nodes]
-  "take a map of nodes and incrementes the existing inv for only the stores in the utilities col and returns nodes updated"
-  (let [stores-only (m/filter-keys is-store-key? utilities)
-        store-index-to-flow (reduce (fn [[k1 v1] [k2 v2]] (if (> v1 v2) [k1 v1] [k2 v2]))  stores-only)
-        inc-store (flow-pack (get-in nodes [:stores (first store-index-to-flow)]))
-        nodes-stores-inc (assoc-in nodes [:stores (first store-index-to-flow)] inc-store)
-        inc-vendor (update-index vendors-index)]
-    (into {} (map (fn [[k v]] (assoc-in nodes-stores-inc [:vendor k] v)) inc-vendor))))
-
-(defn flow [nodes]
-  (loop [flowed-nodes nodes]
-    ;Get the utilities first.  Looks like {:v0 1.0 :w0 1.0 :s0 1.0 :s2 0 :s3 1.0}
-    (let [utilities (get-utilities flowed-nodes)]
-      ; If the vendor has positive utility we need to order.
-      (if (<= (get-vendor-utility utilities) 0)
-        (print utilities flowed-nodes)
-        ;We'll recur until the vendor doesn't have positive utility for that pack.
-        (recur (flow-one-pack utilities flowed-nodes)))))
-  )
+;(defn flow [nodes]
+;  (loop [flowed-nodes nodes]
+;    ;Get the utilities first.  Looks like {:v0 1.0 :w0 1.0 :s0 1.0 :s2 0 :s3 1.0}
+;    (let [{:keys [v0] :as utilities} (get-utilities flowed-nodes)]
+;      ; If the vendor has positive utility we need to order.
+;      (if (<= v0 0)
+;        (print utilities flowed-nodes)
+;        ;We'll recur until the vendor doesn't have positive utility for that pack.
+;        (recur (flow-one-pack utilities flowed-nodes)))))
+;  )
 
