@@ -24,4 +24,40 @@
 (deftest test-include-utilities
   (testing "test we populate all the utilities"
     (let [with-utlilities-indexes (include-utilities indexes)]
-    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:vendor-index :v0])))))))
+    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:vendor-index :v0]))))
+    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:warehouses-index :w0]))))
+    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:stores-index :s0]))))
+    )))
+
+;(deftest test-flow-pack
+;  (testing "test that flowing from the top goes all the way down to the store.  Like vendor flow flows through warehouse and to store"
+;    (let [with-utilities-indexes (include-utilities indexes)
+;          flowed-vendor (flow-pack (get-in with-utilities-indexes [:vendor-index :v0]))])))
+
+(deftest test-highest-utility
+  (testing "test that a map of key to integer value returns the key with the highest integer value"
+    (let [warehouses-index (:warehouses-index (include-utilities indexes))
+          stores-index (:stores-index (include-utilities indexes))]
+      (is (= :w0 (highest-utility warehouses-index)))
+      (is (= :s1 (highest-utility stores-index))))))
+
+(deftest test-flow-index
+  (testing "make sure we get back a index that has the entity updated"
+    (let [warehouses-index (:warehouses-index (include-utilities indexes))
+          stores-index (:stores-index (include-utilities indexes))]
+      (is (= 1 (:final-order (:s1 (flow-index stores-index)))))
+      (is (= 1 (:existing-inventory (:s1 (flow-index stores-index)))))
+      (is (= 1 (:final-order(:w0 (flow-index warehouses-index)))))
+      )))
+
+(deftest test-flow-indexes
+  (testing "Flow all the indexes to get their final orders incremmented or for stores existing-inventory incremmented as well."
+    (let [flowed-indexes (flow-indexes (include-utilities indexes))
+          vendor-index (:vendor-index flowed-indexes)
+          warehouses-index (:warehouses-index flowed-indexes)
+          stores-index (:stores-index flowed-indexes)]
+      (is (= 1 (:final-order (:v0 vendor-index))))
+      (is (= 1 (:final-order (:w0 warehouses-index))))
+      (is (= 1 (:final-order (:s1 stores-index))))
+      (is (= 1 (:existing-inventory(:s1 stores-index))))
+      )))

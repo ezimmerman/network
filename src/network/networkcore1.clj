@@ -106,14 +106,32 @@
         warehouses-with-utilities (assoc stores-with-utilities :warehouses-index (m/map-vals #(update-utility % stores-with-utilities) (:warehouses-index stores-with-utilities)))]
     (assoc warehouses-with-utilities :vendor-index (m/map-vals #(update-utility % warehouses-with-utilities) (:vendor-index warehouses-with-utilities)))))
 
-;(defn flow [nodes]
-;  (loop [flowed-nodes nodes]
-;    ;Get the utilities first.  Looks like {:v0 1.0 :w0 1.0 :s0 1.0 :s2 0 :s3 1.0}
-;    (let [{:keys [v0] :as utilities} (get-utilities flowed-nodes)]
-;      ; If the vendor has positive utility we need to order.
-;      (if (<= v0 0)
-;        (print utilities flowed-nodes)
-;        ;We'll recur until the vendor doesn't have positive utility for that pack.
-;        (recur (flow-one-pack utilities flowed-nodes)))))
-;  )
+(defn highest-utility
+  "map of key value pairs, highest value of the value k is the key to get the children"
+  [m]
+  (reduce #(if (> (:utility (% m))  (:utility (%2 m))) % %2)  (keys m)))
+
+(defn flow-index
+  "after flowing an index the entity in the index with the highest utility will have a final order and if a store, an existing-inventory"
+  [index]
+  (let [highest-utility-key (highest-utility index)]
+  (assoc index highest-utility-key (flow-pack (highest-utility-key index)))))
+
+(defn flow-indexes
+  "A slice is all nodes that have connections between each other.  For instance Vendor -> distribution -> stores"
+  [indexes]
+  (m/map-vals flow-index indexes))
+
+
+(defn flow [indexes]
+  (loop [flowed-indexes indexes]
+    ;Include the utilities on the entities for the next possible pack
+    (let [flowed-indexes (include-utilities flowed-indexes)
+          v0 (:v0(:vendor-index flowed-indexes))]
+      ; If the vendor has positive utility we need to order.
+      (if (<= (:utility v0) 0)
+        (print flowed-indexes)
+        ;We'll recur until the vendor doesn't have positive utility for that pack.
+        (recur (flow-indexes flowed-indexes)))))
+  )
 
