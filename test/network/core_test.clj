@@ -2,6 +2,10 @@
   (:require [clojure.test :refer :all]
             [network.networkcore1 :refer :all]))
 
+(def stores-index {:s0 (make-product-store "store0" :target-inventory 5) :s1 (make-product-store "store1" :target-inventory 10) :s2 (make-product-store "store2" :target-inventory 0)})
+(def warehouses-index {:w0 (make-product-warehouse "warehouse0" (keys stores-index))})
+(def vendor-index {:v0 (make-product-vendor "vendor0" (keys warehouses-index))})
+(def indexes {:vendor-index vendor-index :warehouses-index warehouses-index :stores-index stores-index})
 
 (deftest test-store-update-utilities
   (testing "given a store, that it will now include a utiltiey value"
@@ -56,3 +60,8 @@
       (is (= 1 (:final-order (:s1 stores-index))))
       (is (= 1 (:existing-inventory (:s1 stores-index))))
       )))
+
+(deftest test-flow
+  (testing "test the end result for the indexes data structure"
+    (let [flow-indexes (flow indexes)]
+      (is (= 8  (get-in flow-indexes [:vendor-index :v0 :final-order]))))))

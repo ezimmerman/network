@@ -2,6 +2,10 @@
   (:require [schema.core :as s])
   (:require [medley.core :as m]))
 
+; This approach takes the index approach.  Vendors hold on to an index of their warehouses, and warehouses their stores.
+; The index is a key to the actual entity.  This approach is different from the direct nesting of the relationship. Say
+; having a vendor have a vector of warehouses directly.
+
 (s/defrecord Store [name :- String
                     existing-inventory :- s/Int
                     target-inventory :- s/Int
@@ -32,10 +36,6 @@
   (->Warehouse name
                0
                product-stores))
-(def stores-index {:s0 (make-product-store "store0" :target-inventory 5) :s1 (make-product-store "store1" :target-inventory 10) :s2 (make-product-store "store2" :target-inventory 0)})
-(def warehouses-index {:w0 (make-product-warehouse "warehouse0" (keys stores-index))})
-(def vendor-index {:v0 (make-product-vendor "vendor0" (keys warehouses-index))})
-(def indexes {:vendor-index vendor-index :warehouses-index warehouses-index :stores-index stores-index})
 
 ; functions to work against data structure
 
@@ -116,7 +116,7 @@
     (assoc index highest-utility-key (flow-pack (highest-utility-key index)))))
 
 (defn flow-indexes
-  "A slice is all nodes that have connections between each other.  For instance Vendor -> distribution -> stores"
+  "Given an index, which is a map of :vendor-index to vendor, :warehouses-indexs to warehouses, and :stores-index to stores."
   [indexes]
   (m/map-vals flow-index indexes))
 
@@ -127,8 +127,9 @@
     (let [flowed-indexes (include-utilities flowed-indexes)
           v0 (:v0 (:vendor-index flowed-indexes))]
       ; If the vendor has positive utility we need to order.
+      ; IF not we are done!  Return the map with information about final orders etc.
       (if (<= (:utility v0) 0)
-        (print flowed-indexes)
+        flowed-indexes
         ;We'll recur until the vendor doesn't have positive utility for that pack.
         (recur (flow-indexes flowed-indexes)))))
   )
