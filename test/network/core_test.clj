@@ -11,28 +11,23 @@
 (deftest test-warehouse-utilities
   (testing "given a warehouse, that it will now include a utility equal to the highest utility of a store in it's collection"
     (let [util-index (assoc-in indexes [:stores-index :s0] (update-utility (get-in indexes [:stores-index :s0])))
-          warehouse  (get-in indexes [:warehouses-index :w0])]
+          warehouse (get-in indexes [:warehouses-index :w0])]
       (is (= 1.0 (:utility (update-utility warehouse util-index)))))))
 
 (deftest test-vendor-utilities
   (testing "given a vendor, that it will now include a utility equal to the highest utility of a warehouse in it's collection"
     (let [store-util-index (assoc-in indexes [:stores-index :s0] (update-utility (get-in indexes [:stores-index :s0])))
           warehouse-util-index (assoc-in store-util-index [:warehouses-index :w0] (update-utility (get-in store-util-index [:warehouses-index :w0]) store-util-index))
-          vendor  (get-in warehouse-util-index [:vendor-index :v0])]
+          vendor (get-in warehouse-util-index [:vendor-index :v0])]
       (is (= 1.0 (:utility (update-utility vendor warehouse-util-index)))))))
 
 (deftest test-include-utilities
   (testing "test we populate all the utilities"
     (let [with-utlilities-indexes (include-utilities indexes)]
-    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:vendor-index :v0]))))
-    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:warehouses-index :w0]))))
-    (is (= 1.0 (:utility (get-in with-utlilities-indexes [:stores-index :s0]))))
-    )))
-
-;(deftest test-flow-pack
-;  (testing "test that flowing from the top goes all the way down to the store.  Like vendor flow flows through warehouse and to store"
-;    (let [with-utilities-indexes (include-utilities indexes)
-;          flowed-vendor (flow-pack (get-in with-utilities-indexes [:vendor-index :v0]))])))
+      (is (= 1.0 (:utility (get-in with-utlilities-indexes [:vendor-index :v0]))))
+      (is (= 1.0 (:utility (get-in with-utlilities-indexes [:warehouses-index :w0]))))
+      (is (= 1.0 (:utility (get-in with-utlilities-indexes [:stores-index :s0]))))
+      )))
 
 (deftest test-highest-utility
   (testing "test that a map of key to integer value returns the key with the highest integer value"
@@ -47,7 +42,7 @@
           stores-index (:stores-index (include-utilities indexes))]
       (is (= 1 (:final-order (:s1 (flow-index stores-index)))))
       (is (= 1 (:existing-inventory (:s1 (flow-index stores-index)))))
-      (is (= 1 (:final-order(:w0 (flow-index warehouses-index)))))
+      (is (= 1 (:final-order (:w0 (flow-index warehouses-index)))))
       )))
 
 (deftest test-flow-indexes
@@ -59,5 +54,5 @@
       (is (= 1 (:final-order (:v0 vendor-index))))
       (is (= 1 (:final-order (:w0 warehouses-index))))
       (is (= 1 (:final-order (:s1 stores-index))))
-      (is (= 1 (:existing-inventory(:s1 stores-index))))
+      (is (= 1 (:existing-inventory (:s1 stores-index))))
       )))

@@ -37,8 +37,6 @@
 (def vendor-index {:v0 (make-product-vendor "vendor0" (keys warehouses-index))})
 (def indexes {:vendor-index vendor-index :warehouses-index warehouses-index :stores-index stores-index})
 
-
-
 ; functions to work against data structure
 
 (defprotocol Product-utility (product-utility [entity] [entity indexes]))
@@ -66,7 +64,7 @@
   Store
   (product-utility [store]
     (let [pack (+ (get-final-order store) (get-existing-inventory store))
-          end  (get-target-inventory store)]
+          end (get-target-inventory store)]
       (if (< pack end) 1.0 (* (/ 1.0 pack) -1.0)))))
 
 (extend-protocol Product-utility
@@ -102,20 +100,20 @@
 (defn include-utilities
   "using the stores, warehouses and vendor indexes, add the utility calculations for the potential pack"
   [indexes]
-  (let [stores-with-utilities     (assoc indexes :stores-index (m/map-vals update-utility (:stores-index indexes)))
+  (let [stores-with-utilities (assoc indexes :stores-index (m/map-vals update-utility (:stores-index indexes)))
         warehouses-with-utilities (assoc stores-with-utilities :warehouses-index (m/map-vals #(update-utility % stores-with-utilities) (:warehouses-index stores-with-utilities)))]
     (assoc warehouses-with-utilities :vendor-index (m/map-vals #(update-utility % warehouses-with-utilities) (:vendor-index warehouses-with-utilities)))))
 
 (defn highest-utility
   "map of key value pairs, highest value of the value k is the key to get the children"
   [m]
-  (reduce #(if (> (:utility (% m))  (:utility (%2 m))) % %2)  (keys m)))
+  (reduce #(if (> (:utility (% m)) (:utility (%2 m))) % %2) (keys m)))
 
 (defn flow-index
   "after flowing an index the entity in the index with the highest utility will have a final order and if a store, an existing-inventory"
   [index]
   (let [highest-utility-key (highest-utility index)]
-  (assoc index highest-utility-key (flow-pack (highest-utility-key index)))))
+    (assoc index highest-utility-key (flow-pack (highest-utility-key index)))))
 
 (defn flow-indexes
   "A slice is all nodes that have connections between each other.  For instance Vendor -> distribution -> stores"
@@ -127,7 +125,7 @@
   (loop [flowed-indexes indexes]
     ;Include the utilities on the entities for the next possible pack
     (let [flowed-indexes (include-utilities flowed-indexes)
-          v0 (:v0(:vendor-index flowed-indexes))]
+          v0 (:v0 (:vendor-index flowed-indexes))]
       ; If the vendor has positive utility we need to order.
       (if (<= (:utility v0) 0)
         (print flowed-indexes)
