@@ -4,10 +4,10 @@
     <entry_points version="2.0" />
   </component>
   <component name="IdProvider" IDEtalkID="4022070B21B0842B16742DB82358BEFD" />
-  <component name="LeiningenProjectsManager">
-    <option name="projectFiles">
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
       <list>
-        <option value="file://$PROJECT_DIR$/project.clj" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>
