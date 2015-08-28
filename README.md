@@ -1,10 +1,10 @@
 # network
 
-FIXME: description
+A simple network solver in clojure.  Two examples done, one expressing the relationships between 
+the nodes (vendor, warehouses, stores) as indexes, the other is using direct nesting.
 
 ## Installation
 
-Download from http://example.com/FIXME.
 
 ## Usage
 
