@@ -3,23 +3,26 @@
   (:require [schema.core :as s])
   (:require [medley.core :as m]))
 
+; This approach is a nested relationship approach.  Vendors have a hashset of warehouses
+; warehouses have a hashset of stores.
+
 (s/defrecord Store [name :- String
                     existing-inventory :- s/Int
                     target-inventory :- s/Int
                     final-order :- s/Int])
 (s/defrecord Warehouse [name :- String
                         final-order :- s/Int
-                        stores :- [Store]])
+                        sinks :- #{Store}])
 (s/defrecord Vendor [name :- String
                      final-order :- s/Int
-                     warehouses :- [Warehouse]])
+                     sinks :- #{Warehouse}])
 
-(defn- make-vendor [name warehouses]
+(defn make-vendor [name sinks]
   (->Vendor name
             0
-            warehouses))
+            sinks))
 
-(defn- make-store [name & opts]
+(defn make-store [name & opts]
   (let [{:keys [existing-inventory
                 target-inventory] :or {existing-inventory 0 target-inventory 0}} opts] ;; default to 0
     (->Store name
@@ -27,97 +30,93 @@
              target-inventory
              0)))
 
-(defn- make-warehouse [name product-stores]
+(defn make-warehouse [name sinks]
   (->Warehouse name
                0
-               product-stores))
+               sinks))
 
-(defn- get-final-order [entity]
+(defn get-final-order [entity]
   (:final-order entity))
 
-(defn- get-existing-inventory [store]
+(defn get-existing-inventory [store]
   (:existing-inventory store))
 
-(defn- get-stores [map]
-  (:stores map))
+(defn get-sinks [map]
+  (:sinks map))
 
-(defn- get-warehouses [vendor]
-  (:warehouses vendor))
-
-(defn- get-target-inventory [store]
+(defn get-target-inventory [store]
   (:target-inventory store))
 
-(defn- get-entity-utility [entity]
+(defn get-name
+  [entity]
+  (:name entity))
+
+(defn get-utility [entity]
   (:utility entity))
 
-(defn- reset-entity-utility [entity]
+(defn reset-entity-utility [entity]
   (dissoc entity :utility))
 
-(defn- highest-util-entity [entity0 entity1]
-  (if (> (:utility entity0) (:utility entity1)) entity0 entity1))
-
-(defn- entity-equals [entity0]
-  (fn [entity1]
-    (= (:name entity0) (:name entity1))))
-
-(defn- replace-entity [entity seq]
-  (conj (remove (entity-equals entity) seq) entity))
+(defn highest-util-entity [entity0 entity1]
+  (if (> (get-utility entity0) (get-utility entity1)) entity0 entity1))
 
 
-(defprotocol Product-utility (utility [entity]))
+(defprotocol Include-utility (include-utility [entity]))
 (defprotocol Flow (flow-one-pack [entity]))
-(defprotocol Include-Utility (include-utility [entity]))
 (defprotocol Reset-utility (reset-utility [entity]))
 
-(defn- reset-utilities [entity children-key]
-  (assoc entity children-key(map reset-utility (children-key entity))))
-
-(defn- include-utilities [entity children-key child-fn]
-  (assoc entity children-key (map utility (child-fn entity))))
+;Reset utilities
+(defn reset-utilities [entity-col]
+  (map reset-utility entity-col))
 
 (extend-protocol Reset-utility
   Store
   (reset-utility [store]
-    (reset-entity-utility [store])))
+    (reset-entity-utility store)))
 
 (extend-protocol Reset-utility
   Warehouse
   (reset-utility [warehouse]
-    (reset-utilities warehouse :stores)))
+    (reset-entity-utility (assoc warehouse :sinks (reset-utilities (get-sinks warehouse))))))
 
 (extend-protocol Reset-utility
   Vendor
   (reset-utility [vendor]
-    (reset-utilities vendor :warehouses)))
+    (reset-entity-utility (assoc vendor :sinks (reset-utilities (get-sinks vendor))))))
 
-(extend-protocol Include-Utility
-  Warehouse
-  (include-utility [warehouse]
-    (include-utilities warehouse :stores get-stores)))
 
-(extend-protocol Include-Utility
-  Vendor
-  (include-utility [vendor]
-    (include-utilities vendor :warehouses get-warehouses)))
-
-(extend-protocol Product-utility
+; Include-utility
+(extend-protocol Include-utility
   Store
-  (utility [store]
+  (include-utility [store]
     (let [pack (+ (get-final-order store) (get-existing-inventory store))
-          end  (get-target-inventory store)]
+          end (get-target-inventory store)]
       (assoc store :utility (if (< pack end) 1.0 (* (/ 1.0 pack) -1.0))))))
 
-(extend-protocol Product-utility
+(extend-protocol Include-utility
   Warehouse
-  (utility [warehouse]
-    (let [warehouse-with-utilities (include-utility warehouse)]
-      (assoc warehouse-with-utilities :utility (reduce #(max (:utility %2) %) 0 (:stores warehouse-with-utilities))))))
+  (include-utility [warehouse]
+    (let [warehouse-with-stores-set (assoc warehouse :sinks (map include-utility (get-sinks warehouse)))]
+      (assoc warehouse-with-stores-set :utility (reduce #(max (get-utility %2) %) 0 (get-sinks warehouse-with-stores-set))))))
 
-(extend-protocol Product-utility
+(extend-protocol Include-utility
   Vendor
-  (utility [vendor]
-    (let [vendor-with-utilities (include-utility vendor)]
-      (assoc vendor-with-utilities :utility (reduce #(max (:utility %2) %) 0 (:warehouses vendor-with-utilities))))))
+  (include-utility [vendor]
+    (let [vendor-with-warehoueses-set (assoc vendor :sinks (map include-utility (get-sinks vendor)))]
+      (assoc vendor-with-warehoueses-set :utility (reduce #(max (get-utility %2) %) 0 (get-sinks vendor-with-warehoueses-set))))))
+
+; Flow
+
+(defn entity-equals [entity0]
+  (fn [entity1]
+    (= (get-name entity0) (get-name entity1))))
+
+(defn replace-entity [entity seq]
+  (conj (remove (entity-equals entity) seq) entity))
+
+(defn flow-sinks
+  [sinks]
+  (replace-entity (flow-one-pack (reduce highest-util-entity sinks)) sinks))
 
 (extend-protocol Flow
   Store
@@ -127,22 +126,15 @@
 (extend-protocol Flow
   Warehouse
   (flow-one-pack [warehouse]
-    (let [updated-warehouse (update warehouse :final-order inc)]
-      (assoc updated-warehouse :stores (replace-entity (flow-one-pack (reduce highest-util-entity (:stores updated-warehouse))) (:stores updated-warehouse))))))
+    (let [warehouse-with-store-flowed (assoc warehouse :sinks (flow-sinks (get-sinks warehouse)))]
+      (update warehouse-with-store-flowed :final-order inc))))
 
 
 (extend-protocol Flow
   Vendor
   (flow-one-pack [vendor]
-    (let [updated-vendor (update vendor :final-order inc)]
-      (assoc updated-vendor :warehouses (replace-entity (flow-one-pack (reduce highest-util-entity (:warehouses updated-vendor))) (:warehouses updated-vendor))))))
-
-
-
-
-(def vendor (make-vendor "vendor0" [(make-warehouse "warehouse0" [(make-store "store0" :target-inventory 5)
-                                                                  (make-store "store1" :target-inventory 10)
-                                                                  (make-store "store2" :target-inventory 0)])]))
+    (let [vendor-with-warehouse-flowed (assoc vendor :sinks (flow-sinks (get-sinks vendor)))]
+      (reset-utility (update vendor-with-warehouse-flowed :final-order inc)))))
 
 
 (defn flow [vendor]
@@ -150,13 +142,10 @@
     ;Get the utilities first.  We'll assoc the utility value onto the objects, so the data structure will be the same
     ;as nodes but with the utility added.
     ; If the vendor has positive utility we need to order.
-    (let [utilities-vendor (utility flowed-vendor)]
-      (if (<= (get-entity-utility utilities-vendor) 0)
-        (println utilities-vendor)
+    (let [utilities-vendor (include-utility flowed-vendor)]
+      (if (<= (get-utility utilities-vendor) 0)
+        utilities-vendor
         ;We'll recur until the vendor doesn't have positive utility for that pack.
         (recur (flow-one-pack utilities-vendor)))))
   )
 
-(defn -main
-  [& args]
-  )
